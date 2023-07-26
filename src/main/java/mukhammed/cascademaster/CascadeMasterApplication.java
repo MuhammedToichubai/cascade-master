@@ -1,18 +1,15 @@
 package mukhammed.cascademaster;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import jakarta.transaction.Transactional;
-import lombok.Getter;
-import lombok.Setter;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.rest.core.annotation.RepositoryRestResource;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+
+import static jakarta.persistence.CascadeType. *;
 
 @RepositoryRestResource(path = "groups")
 interface GroupRepo extends JpaRepository<Group, Long> {
@@ -44,7 +41,6 @@ errors*
 org.hibernate.TransientPropertyValueException: object references an unsaved transient instance - save the transient instance before flushing : mukhammed.cascademaster.Student.laptop -> mukhammed.cascademaster.Laptop
  */
 
-
 @RestController
 class StudentHttpController {
 
@@ -56,72 +52,7 @@ class StudentHttpController {
         this.studentRepo = studentRepo;
         this.laptopRepo = laptopRepo;
     }
-
-
-    // persists
-    @PostMapping("/api/students")
-    ResponseEntity<Student> create(@RequestBody StudentRequest studentRequest) {
-        return ResponseEntity.ok(studentRepo.save(studentRequest.build()));
-    }
-
-    // trash
-    @PutMapping("/api/students/{studentId}")
-    ResponseEntity<?> updateLaptop(@PathVariable Long studentId,
-                                   @RequestBody StudentRequest studentRequest) {
-        studentRepo.findById(studentId)
-                .ifPresent(student -> {
-                    student.setFullName(studentRequest.fullName());
-                    student.getLaptop().setModel(studentRequest.laptop().model());
-                    student.getLaptop().setPrice(studentRequest.laptop().price());
-                    studentRepo.save(student);
-                });
-
-        return ResponseEntity.status(200).build();
-    }
-
-
-    // koroche merge ozunor okup alynyzdar
-    @PutMapping("/api/students/{studentId}/setLaptop")
-    @Transactional
-    ResponseEntity<Student> setLaptopToTheStudent(@PathVariable Long studentId,
-                                                  @RequestBody Laptop laptop) {
-        Student student = studentRepo.findById(studentId)
-                .orElse(null);
-
-        if (student != null) {
-            student.setLaptop(laptop);
-        }
-
-        return ResponseEntity.ok(student);
-    }
-
-
 }
-
-record StudentRequest(
-        String fullName,
-        LaptopRequest laptop
-) {
-    public Student build() {
-        Student newStudent = new Student();
-        newStudent.setFullName(this.fullName);
-        newStudent.setLaptop(laptop.build());
-        return newStudent;
-    }
-}
-
-record LaptopRequest(
-        String model,
-        double price
-) {
-    public Laptop build() {
-        Laptop newLaptop = new Laptop();
-        newLaptop.setModel(this.model);
-        newLaptop.setPrice(this.price);
-        return newLaptop;
-    }
-}
-
 
 @MappedSuperclass
 class BaseEntity {
@@ -140,8 +71,6 @@ class BaseEntity {
 }
 
 @Entity
-@Getter
-@Setter
 class Laptop extends BaseEntity {
 
     @Column(name = "model")
@@ -149,31 +78,98 @@ class Laptop extends BaseEntity {
     private double price;
 
     @OneToOne(mappedBy = "laptop")
-    @JsonIgnore
     private Student laptopOwner;
+
+    @Override
+    public Long getId() {
+        return super.getId();
+    }
+
+    @Override
+    public void setId(Long id) {
+        super.setId(id);
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
+    }
+
+    public double getPrice() {
+        return price;
+    }
+
+    public void setPrice(double price) {
+        this.price = price;
+    }
+
+    public Student getLaptopOwner() {
+        return laptopOwner;
+    }
+
+    public void setLaptopOwner(Student laptopOwner) {
+        this.laptopOwner = laptopOwner;
+    }
 }
 
 @Entity
 class Student extends BaseEntity {
     private String fullName;
 
-    @ManyToMany
+    @ManyToMany(cascade = {DETACH, REFRESH, PERSIST}, mappedBy = "studentList")
     private List<Group> group;
 
-    @OneToOne(cascade = CascadeType.PERSIST)//, CascadeType.MERGE})
+    @OneToOne
     private Laptop laptop;
 
     @PrePersist
     @PreUpdate
     private void updateLaptop() {
-        laptop.setLaptopOwner(this);
+        if (this.laptop != null) {
+            laptop.setLaptopOwner(this);
+        }
+    }
+
+    @Override
+    public Long getId() {
+        return super.getId();
+    }
+
+    @Override
+    public void setId(Long id) {
+        super.setId(id);
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public List<Group> getGroup() {
+        return group;
+    }
+
+    public void setGroup(List<Group> group) {
+        this.group = group;
+    }
+
+    public Laptop getLaptop() {
+        return laptop;
+    }
+
+    public void setLaptop(Laptop laptop) {
+        this.laptop = laptop;
     }
 }
 
 @Entity
 @Table(name = "groups")
-@Getter
-@Setter
 class Group extends BaseEntity {
 
     private String groupName;
@@ -183,6 +179,37 @@ class Group extends BaseEntity {
     How to?
     MappedBy should be in Main Class
      */
-    @ManyToMany
+    @ManyToMany(cascade = {DETACH, REFRESH, PERSIST})
+    @JoinTable(name = "groups_students",
+            joinColumns = @JoinColumn(name = "group_id"),
+            inverseJoinColumns = @JoinColumn(name = "student_id"))
     private List<Student> studentList;
+
+    @Override
+    public Long getId() {
+        return super.getId();
+    }
+
+    @Override
+    public void setId(Long id) {
+        super.setId(id);
+    }
+
+    public String getGroupName() {
+        return groupName;
+    }
+
+    public void setGroupName(String groupName) {
+        this.groupName = groupName;
+    }
+
+    public List<Student> getStudentList() {
+        return studentList;
+    }
+
+    public void setStudentList(List<Student> studentList) {
+        this.studentList = studentList;
+    }
 }
+
+
