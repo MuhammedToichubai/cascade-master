@@ -1,0 +1,12 @@
+spring:
+  jpa:
+    show-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQL10Dialect
+    hibernate:
+      ddl-auto: validate
+  datasource:
+    url: jdbc:postgresql://localhost:5454/mydb
+    username: mydbadmin
+    password: mydb2023
+server:
+  port: 8090
